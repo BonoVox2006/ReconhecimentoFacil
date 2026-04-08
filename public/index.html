@@ -10,7 +10,7 @@
     <meta name="description" content="Identificação facial de deputados federais com dados abertos da Câmara." />
     <title>Deputados — identificação facial</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=2" />
+    <link rel="stylesheet" href="./styles.css?v=3" />
     <!-- Scripts externos sem defer bloqueiam pintura; se o CDN falhar a página fica em branco. -->
     <style>
       html,
@@ -69,14 +69,19 @@
       </section>
 
       <section class="viewer" id="viewer" hidden>
+        <p class="viewer__caption">Resultado (acima da câmara)</p>
+        <div id="matchCard" class="match-card match-card--live">
+          <div class="match-card__empty">Aponte a câmera para um rosto.</div>
+        </div>
+        <p class="viewer__caption viewer__caption--cam">Câmara</p>
         <div class="video-wrap" id="videoWrap">
           <video id="video" playsinline autoplay muted></video>
           <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
         </div>
         <label class="zoom-row field">
-          <span class="field__label">Aproximar imagem (zoom)</span>
+          <span class="field__label" id="zoomLabel">Zoom</span>
           <div class="zoom-row__inner">
-            <span class="zoom-row__hint">1x</span>
+            <span class="zoom-row__hint" id="zoomHintMin">−</span>
             <input
               type="range"
               id="videoZoom"
@@ -85,23 +90,20 @@
               max="3"
               step="0.05"
               value="1"
-              aria-valuetext="Zoom 1x"
+              aria-valuetext="Zoom"
             />
-            <span class="zoom-row__hint">3x</span>
+            <span class="zoom-row__hint" id="zoomHintMax">+</span>
           </div>
           <p class="zoom-row__note" id="zoomNote">
-            Em alguns telemóveis o zoom usa a câmara; noutros, amplia só a imagem na tela.
+            Ajuste o zoom após iniciar a câmara.
           </p>
         </label>
-        <div id="matchCard" class="match-card">
-          <div class="match-card__empty">Aponte a câmera para um rosto.</div>
-        </div>
       </section>
 
       <footer class="footer">
         <p>
-          Uso de câmera e dados biométricos exige base legal e transparência (LGPD). Ferramenta educacional —
-          verifique confiança antes de decisões.
+          Aplicação desenvolvida por Servidor da Câmara dos Deputados para fins acadêmicos em consonância com o
+          que preconiza a LGPD.
         </p>
       </footer>
     </div>
@@ -122,6 +124,6 @@
       src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
       onerror="showCdnBlocked()"
     ></script>
-    <script defer src="./app.js?v=5" onerror="showCdnBlocked()"></script>
+    <script defer src="./app.js?v=7" onerror="showCdnBlocked()"></script>
   </body>
 </html>

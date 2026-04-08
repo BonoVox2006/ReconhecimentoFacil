@@ -42,6 +42,9 @@
     overlay: document.getElementById("overlay"),
     zoomSlider: document.getElementById("videoZoom"),
     zoomNote: document.getElementById("zoomNote"),
+    zoomLabel: document.getElementById("zoomLabel"),
+    zoomHintMin: document.getElementById("zoomHintMin"),
+    zoomHintMax: document.getElementById("zoomHintMax"),
     matchCard: document.getElementById("matchCard"),
   };
 
@@ -104,14 +107,25 @@
   }
 
   async function fetchLegislaturas() {
-    const r = await fetch(API + "/legislaturas?itens=16&ordem=DESC");
+    const r = await fetch(API + "/legislaturas?itens=2&ordem=DESC");
     if (!r.ok) throw new Error("Falha ao carregar legislaturas.");
     const j = await r.json();
+    const lista = (j.dados || []).slice(0, 2);
+    const rotulos = ["atual", "anterior"];
     el.legislatura.innerHTML = "";
-    for (const L of j.dados) {
+    for (var i = 0; i < lista.length; i++) {
+      const L = lista[i];
       const opt = document.createElement("option");
       opt.value = String(L.id);
-      opt.textContent = "Legislatura " + L.id + " (" + L.dataInicio + " – " + L.dataFim + ")";
+      opt.textContent =
+        "Legislatura " +
+        L.id +
+        " (" +
+        rotulos[i] +
+        ") — " +
+        L.dataInicio +
+        " a " +
+        L.dataFim;
       el.legislatura.appendChild(opt);
     }
   }
@@ -293,7 +307,7 @@
       '<div class="match-result">' +
       '<img src="' +
       proxiedPhotoUrl(meta.urlFoto) +
-      '" alt="" width="72" height="90" loading="lazy" />' +
+      '" alt="" width="88" height="110" loading="lazy" />' +
       '<div class="match-result__meta">' +
       "<h2 class=\"match-result__name\">" +
       escapeHtml(meta.nome) +
@@ -352,6 +366,9 @@
 
   var pinchStartDist = 0;
   var pinchStartZoom = 1;
+  var zoomModeHardware = false;
+  var zoomHwMin = 1;
+  var zoomHwMax = 3;
 
   function touchPinchDist(t0, t1) {
     var dx = t0.clientX - t1.clientX;
@@ -359,50 +376,104 @@
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  function setCssVideoZoom(level) {
-    var scale = 1 + (level - 1) * 0.95;
-    el.video.style.transform = "scaleX(-1) scale(" + scale + ")";
+  function readSliderZoom() {
+    if (!el.zoomSlider) return 1;
+    return parseFloat(el.zoomSlider.value);
+  }
+
+  function clampToSliderRange(v) {
+    if (!el.zoomSlider) return v;
+    var mn = parseFloat(el.zoomSlider.min);
+    var mx = parseFloat(el.zoomSlider.max);
+    if (v < mn) return mn;
+    if (v > mx) return mx;
+    return v;
+  }
+
+  async function tryBoostVideoResolution(track) {
+    if (!track || typeof track.getCapabilities !== "function") return;
+    try {
+      var caps = track.getCapabilities();
+      if (!caps.width || !caps.height) return;
+      var w = Math.min(caps.width.max || 1920, 2560);
+      var h = Math.min(caps.height.max || 1080, 1440);
+      if (w < 640) return;
+      await track.applyConstraints({
+        width: { ideal: w },
+        height: { ideal: h },
+      });
+    } catch (_) {}
+  }
+
+  function configureZoomUI(track) {
+    if (!el.zoomSlider || !track || typeof track.getCapabilities !== "function") return;
+    var caps = track.getCapabilities();
+    var zcap = caps && caps.zoom;
+    var hasUsableZoom =
+      zcap && typeof zcap.min === "number" && typeof zcap.max === "number" && zcap.max > zcap.min + 0.0001;
+
+    if (hasUsableZoom) {
+      zoomModeHardware = true;
+      zoomHwMin = zcap.min;
+      zoomHwMax = zcap.max;
+      var step = zcap.step;
+      if (!step || step <= 0) {
+        step = Math.max(0.001, (zoomHwMax - zoomHwMin) / 100);
+      }
+      el.zoomSlider.min = String(zoomHwMin);
+      el.zoomSlider.max = String(zoomHwMax);
+      el.zoomSlider.step = String(step);
+      var settings = track.getSettings && track.getSettings();
+      var cur =
+        settings && typeof settings.zoom === "number" ? settings.zoom : zoomHwMin;
+      cur = Math.min(zoomHwMax, Math.max(zoomHwMin, cur));
+      el.zoomSlider.value = String(cur);
+      if (el.zoomLabel) el.zoomLabel.textContent = "Zoom da câmara (qualidade preservada)";
+      if (el.zoomHintMin) el.zoomHintMin.textContent = "min";
+      if (el.zoomHintMax) el.zoomHintMax.textContent = "máx";
+      if (el.zoomNote) {
+        el.zoomNote.textContent =
+          "Usa o zoom real da lente/sensor — podes ir ao máximo sem o borrão do zoom só na tela.";
+      }
+    } else {
+      zoomModeHardware = false;
+      zoomHwMin = 1;
+      zoomHwMax = 1.15;
+      el.zoomSlider.min = "1";
+      el.zoomSlider.max = "1.15";
+      el.zoomSlider.step = "0.01";
+      el.zoomSlider.value = "1";
+      if (el.zoomLabel) el.zoomLabel.textContent = "Zoom leve (só tela)";
+      if (el.zoomHintMin) el.zoomHintMin.textContent = "1×";
+      if (el.zoomHintMax) el.zoomHintMax.textContent = "1,15×";
+      if (el.zoomNote) {
+        el.zoomNote.textContent =
+          "Este aparelho/browser não expõe zoom da câmara na Web. O deslize só amplia a imagem (qualidade limitada). Para zoom forte à distância, use Chrome em Android com câmara traseira ou aproxime o telemóvel.";
+      }
+    }
   }
 
   async function applyVideoZoom(level) {
     if (!el.video || !el.video.srcObject) return;
+    var v = parseFloat(level);
+    v = clampToSliderRange(v);
     var stream = el.video.srcObject;
     var track = stream.getVideoTracks && stream.getVideoTracks()[0];
-    if (!track || typeof track.getCapabilities !== "function") {
-      setCssVideoZoom(level);
-      if (el.zoomNote) {
-        el.zoomNote.textContent =
-          "Zoom na tela. Se o rosto continuar pequeno, aproxime o telemóvel ou use a câmara traseira.";
-      }
-      return;
-    }
-    var caps = track.getCapabilities();
-    if (caps && caps.zoom) {
-      var t = (level - 1) / 2;
-      var zMin = caps.zoom.min;
-      var zMax = caps.zoom.max;
-      var z = zMin + t * (zMax - zMin);
+    if (!track) return;
+
+    if (zoomModeHardware) {
       try {
         if (typeof track.applyConstraints === "function") {
           try {
-            await track.applyConstraints({ zoom: z });
+            await track.applyConstraints({ zoom: v });
           } catch (_) {
-            await track.applyConstraints({ advanced: [{ zoom: z }] });
+            await track.applyConstraints({ advanced: [{ zoom: v }] });
           }
         }
-        el.video.style.transform = "scaleX(-1) scale(1)";
-        if (el.zoomNote) {
-          el.zoomNote.textContent = "Zoom da câmara ativo (melhor para filmar de mais longe).";
-        }
-        return;
-      } catch (_) {
-        /* continua para zoom na tela */
-      }
-    }
-    setCssVideoZoom(level);
-    if (el.zoomNote) {
-      el.zoomNote.textContent =
-        "Zoom na tela. Em muitos telemóveis só o zoom óptico da câmara melhora o reconhecimento à distância.";
+      } catch (_) {}
+      el.video.style.transform = "scaleX(-1) scale(1)";
+    } else {
+      el.video.style.transform = "scaleX(-1) scale(" + v + ")";
     }
   }
 
@@ -446,14 +517,15 @@
     }
     el.video.srcObject = stream;
     await el.video.play();
+    var vtrack = stream.getVideoTracks()[0];
+    await tryBoostVideoResolution(vtrack);
+    configureZoomUI(vtrack);
     el.viewer.hidden = false;
     cameraRunning = true;
-    if (el.zoomSlider) {
-      el.zoomSlider.value = "1";
-      el.zoomSlider.setAttribute("aria-valuetext", "Zoom 1x");
-    }
-    await applyVideoZoom(1);
-    setStatus("Câmera ativa. Use o zoom ou o gesto de pinça na imagem.", "ok");
+    await applyVideoZoom(readSliderZoom());
+    el.zoomSlider &&
+      el.zoomSlider.setAttribute("aria-valuetext", "Zoom " + readSliderZoom().toFixed(2));
+    setStatus("Câmera ativa. Resultado em cima; pinça ou deslize para zoom.", "ok");
     rafId = requestAnimationFrame(onVideoFrame);
   }
 
@@ -470,17 +542,27 @@
     el.video.srcObject = null;
     el.video.style.transform = "scaleX(-1) scale(1)";
     if (el.zoomSlider) {
+      el.zoomSlider.min = "1";
+      el.zoomSlider.max = "3";
+      el.zoomSlider.step = "0.05";
       el.zoomSlider.value = "1";
-      el.zoomSlider.setAttribute("aria-valuetext", "Zoom 1x");
+      el.zoomSlider.setAttribute("aria-valuetext", "Zoom");
     }
+    if (el.zoomLabel) el.zoomLabel.textContent = "Zoom";
+    if (el.zoomHintMin) el.zoomHintMin.textContent = "−";
+    if (el.zoomHintMax) el.zoomHintMax.textContent = "+";
+    if (el.zoomNote) el.zoomNote.textContent = "Ajuste o zoom após iniciar a câmara.";
     el.viewer.hidden = true;
   }
 
   if (el.zoomSlider) {
     el.zoomSlider.addEventListener("input", function () {
       if (!cameraRunning) return;
-      var v = parseFloat(el.zoomSlider.value);
-      el.zoomSlider.setAttribute("aria-valuetext", "Zoom " + v.toFixed(2) + "x");
+      var v = readSliderZoom();
+      el.zoomSlider.setAttribute(
+        "aria-valuetext",
+        zoomModeHardware ? "Zoom câmara " + v.toFixed(2) : "Zoom tela " + v.toFixed(2)
+      );
       applyVideoZoom(v);
     });
   }
@@ -502,9 +584,13 @@
         if (ev.touches.length === 2 && pinchStartDist > 10 && el.zoomSlider) {
           var d = touchPinchDist(ev.touches[0], ev.touches[1]);
           var ratio = d / pinchStartDist;
-          var nv = Math.min(3, Math.max(1, pinchStartZoom * ratio));
+          var nv = pinchStartZoom * ratio;
+          nv = clampToSliderRange(nv);
           el.zoomSlider.value = String(nv);
-          el.zoomSlider.setAttribute("aria-valuetext", "Zoom " + nv.toFixed(2) + "x");
+          el.zoomSlider.setAttribute(
+            "aria-valuetext",
+            zoomModeHardware ? "Zoom câmara " + nv.toFixed(2) : "Zoom tela " + nv.toFixed(2)
+          );
           applyVideoZoom(nv);
           ev.preventDefault();
         }

@@ -169,6 +169,22 @@ body {
 
 .viewer {
   margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.viewer__caption {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.viewer__caption--cam {
+  margin-top: 4px;
 }
 
 .video-wrap {
@@ -176,8 +192,10 @@ body {
   border-radius: var(--radius);
   overflow: hidden;
   background: #000;
-  aspect-ratio: 3 / 4;
-  max-height: min(70vh, 520px);
+  aspect-ratio: 4 / 3;
+  max-height: min(32vh, 220px);
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -234,11 +252,18 @@ body {
 }
 
 .match-card {
-  margin-top: 14px;
+  margin-top: 0;
   background: var(--panel);
   border-radius: var(--radius);
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.viewer .match-card--live {
+  position: sticky;
+  top: 6px;
+  z-index: 6;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .match-card__empty {
@@ -254,11 +279,12 @@ body {
 }
 
 .match-result img {
-  width: 72px;
-  height: 90px;
+  width: 88px;
+  height: 110px;
   object-fit: cover;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .match-result__meta {
@@ -268,8 +294,9 @@ body {
 
 .match-result__name {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.28rem;
   font-weight: 800;
+  line-height: 1.2;
 }
 
 .match-result__sub {
