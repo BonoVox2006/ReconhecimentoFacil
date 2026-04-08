@@ -2,16 +2,8 @@
 (function () {
   "use strict";
 
-  const API_DIRECT = "https://dadosabertos.camara.leg.br/api/v2";
-
-  function apiV2Base() {
-    try {
-      if (typeof location !== "undefined" && location.protocol === "file:") {
-        return API_DIRECT;
-      }
-    } catch (_) {}
-    return "/dados-abertos/v2";
-  }
+  /** API com CORS aberto (*); chamada direta do browser evita proxy no servidor (Render/IP partilhado pode levar 429 na listagem de deputados). */
+  const API_V2 = "https://dadosabertos.camara.leg.br/api/v2";
   const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
   const DB_NAME = "camara-face-identifica-v1";
   const STORE = "gallery";
@@ -116,8 +108,8 @@
   }
 
   async function fetchLegislaturas() {
-    const r = await fetch(apiV2Base() + "/legislaturas?itens=2&ordem=DESC");
-    if (!r.ok) throw new Error("Falha ao carregar legislaturas.");
+    const r = await fetch(API_V2 + "/legislaturas?itens=2&ordem=DESC");
+    if (!r.ok) throw new Error("Falha ao carregar legislaturas (HTTP " + r.status + ").");
     const j = await r.json();
     const lista = (j.dados || []).slice(0, 2);
     const rotulos = ["atual", "anterior"];
@@ -144,14 +136,22 @@
     let pagina = 1;
     while (true) {
       const url =
-        apiV2Base() +
+        API_V2 +
         "/deputados?idLegislatura=" +
         legId +
         "&itens=100&pagina=" +
         pagina +
         "&ordenarPor=nome";
-      const r = await fetch(url);
-      if (!r.ok) throw new Error("Falha ao listar deputados.");
+      var r = await fetch(url);
+      if (r.status === 429) {
+        await new Promise(function (res) {
+          setTimeout(res, 3200);
+        });
+        r = await fetch(url);
+      }
+      if (!r.ok) {
+        throw new Error("Falha ao listar deputados (HTTP " + r.status + ").");
+      }
       const j = await r.json();
       all.push.apply(all, j.dados);
       const next = j.links && j.links.find(function (l) {
