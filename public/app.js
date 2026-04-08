@@ -40,18 +40,22 @@
   const STORE = "gallery";
   const POOL = 4;
 
+  /**
+   * Sensibilidade do reconhecimento (distância euclidiana entre descritores).
+   * Valores mais altos em MATCH_MAX_DIST aceitam mais correspondências fracas (plenário, zoom, luz).
+   */
+  const MATCH_MAX_DIST = 0.68;
+  const MATCH_AMBIGUITY_MARGIN = 0.1;
+
+  const DETECTOR_PHOTO = { inputSize: 512, scoreThreshold: 0.38 };
+  const DETECTOR_VIDEO = { inputSize: 416, scoreThreshold: 0.32 };
+
   function detectorOptionsPhoto() {
-    return new faceapi.TinyFaceDetectorOptions({
-      inputSize: 416,
-      scoreThreshold: 0.45,
-    });
+    return new faceapi.TinyFaceDetectorOptions(DETECTOR_PHOTO);
   }
 
   function detectorOptionsVideo() {
-    return new faceapi.TinyFaceDetectorOptions({
-      inputSize: 320,
-      scoreThreshold: 0.4,
-    });
+    return new faceapi.TinyFaceDetectorOptions(DETECTOR_VIDEO);
   }
 
   /** @type {{ id: number, nome: string, siglaPartido: string, siglaUf: string, urlFoto: string, descriptor: Float32Array }[]} */
@@ -316,25 +320,26 @@
   }
 
   function confidenceClass(dist) {
-    if (dist < 0.42) return "high";
-    if (dist < 0.52) return "mid";
+    if (dist < MATCH_MAX_DIST * 0.62) return "high";
+    if (dist < MATCH_MAX_DIST * 0.82) return "mid";
     return "low";
   }
 
   function formatConfidence(dist) {
-    var pct = Math.max(0, Math.min(100, Math.round((1 - dist / 0.65) * 100)));
+    var scale = MATCH_MAX_DIST * 1.12;
+    var pct = Math.max(0, Math.min(100, Math.round((1 - dist / scale) * 100)));
     return pct + "% confiança estimada";
   }
 
   function renderMatch(meta, dist, ambiguous) {
-    if (!meta || dist > 0.62) {
+    if (!meta || dist > MATCH_MAX_DIST) {
       el.matchCard.innerHTML =
         '<div class="match-card__empty">Rosto não identificado entre os deputados desta legislatura. Aproxime-se, melhore a luz ou tente outro ângulo.</div>';
       return;
     }
     var cls = confidenceClass(dist);
     var amb =
-      ambiguous && dist < 0.55
+      ambiguous && dist < MATCH_MAX_DIST * 0.88
         ? '<p class="match-result__sub" style="color:var(--warn)">Possível ambiguidade com outro deputado.</p>'
         : "";
     el.matchCard.innerHTML =
@@ -388,7 +393,7 @@
         if (!m || m.index < 0) {
           renderMatch(null, 1);
         } else {
-          var ambiguous = m.second < m.distance + 0.08;
+          var ambiguous = m.second < m.distance + MATCH_AMBIGUITY_MARGIN;
           renderMatch(gallery[m.index], m.distance, ambiguous);
         }
       }
