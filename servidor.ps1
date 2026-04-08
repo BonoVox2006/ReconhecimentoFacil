@@ -212,6 +212,38 @@ function Handle-Client([System.Net.Sockets.TcpClient]$client) {
       return
     }
 
+    if ($pathNorm.StartsWith("/dados-abertos/")) {
+      $sub = $pathNorm.Substring("/dados-abertos".Length)
+      if ($sub -notmatch '^/v2/[a-z0-9/_-]+$') {
+        Send-Response $stream 400 "Bad Request" @{ "Content-Type" = "text/plain; charset=utf-8" } (
+          [System.Text.Encoding]::UTF8.GetBytes("Caminho da API invalido.")
+        )
+        return
+      }
+      $target = "https://dadosabertos.camara.leg.br/api" + $sub
+      if (-not [string]::IsNullOrEmpty($query)) {
+        $target = $target + "?" + $query
+      }
+      try {
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add("User-Agent", "CamaraFaceIdentifica/1.0 (PowerShell)")
+        $wc.Headers.Add("Accept", "application/json")
+        $json = $wc.DownloadString($target)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+        Send-Response $stream 200 "OK" @{
+          "Content-Type" = "application/json; charset=utf-8"
+          "Access-Control-Allow-Origin" = "*"
+          "Cache-Control" = "public, max-age=120"
+        } $bytes
+      }
+      catch {
+        Send-Response $stream 502 "Bad Gateway" @{ "Content-Type" = "text/plain; charset=utf-8" } (
+          [System.Text.Encoding]::UTF8.GetBytes("Falha ao consultar API dados abertos.")
+        )
+      }
+      return
+    }
+
     if ($path -eq "/proxy-image") {
       $imageUrl = Get-QueryUrlParam $query
       $baseName = if ($imageUrl) { [System.IO.Path]::GetFileName($imageUrl) } else { "" }

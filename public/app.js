@@ -2,7 +2,16 @@
 (function () {
   "use strict";
 
-  const API = "https://dadosabertos.camara.leg.br/api/v2";
+  const API_DIRECT = "https://dadosabertos.camara.leg.br/api/v2";
+
+  function apiV2Base() {
+    try {
+      if (typeof location !== "undefined" && location.protocol === "file:") {
+        return API_DIRECT;
+      }
+    } catch (_) {}
+    return "/dados-abertos/v2";
+  }
   const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
   const DB_NAME = "camara-face-identifica-v1";
   const STORE = "gallery";
@@ -107,7 +116,7 @@
   }
 
   async function fetchLegislaturas() {
-    const r = await fetch(API + "/legislaturas?itens=2&ordem=DESC");
+    const r = await fetch(apiV2Base() + "/legislaturas?itens=2&ordem=DESC");
     if (!r.ok) throw new Error("Falha ao carregar legislaturas.");
     const j = await r.json();
     const lista = (j.dados || []).slice(0, 2);
@@ -135,7 +144,12 @@
     let pagina = 1;
     while (true) {
       const url =
-        API + "/deputados?idLegislatura=" + legId + "&itens=100&pagina=" + pagina + "&ordenarPor=nome";
+        apiV2Base() +
+        "/deputados?idLegislatura=" +
+        legId +
+        "&itens=100&pagina=" +
+        pagina +
+        "&ordenarPor=nome";
       const r = await fetch(url);
       if (!r.ok) throw new Error("Falha ao listar deputados.");
       const j = await r.json();
@@ -613,6 +627,13 @@
       setStatus("Biblioteca face-api não carregou. Verifique a rede.", "err");
       return;
     }
+    if (typeof location !== "undefined" && location.protocol === "file:") {
+      setStatus(
+        "Não abra o index.html diretamente (protocolo file://). Inicie o servidor — npm start, iniciar-servidor.cmd ou servidor.ps1 — e use http://127.0.0.1:3847/ para o proxy das fotos funcionar.",
+        "err"
+      );
+      return;
+    }
     el.btnBuild.disabled = true;
     el.btnCamera.disabled = true;
     stopCamera();
@@ -621,7 +642,18 @@
     el.buildText.textContent = "0%";
     setStatus("Carregando modelos e lista de deputados…");
     try {
-      await ensureModels();
+      try {
+        await ensureModels();
+      } catch (e) {
+        console.error(e);
+        var m0 = e && e.message ? e.message : String(e);
+        if (m0 === "Failed to fetch") {
+          m0 =
+            "Falha ao carregar os modelos de rosto (jsDelivr). Rede ou firewall institucional pode bloquear o CDN; tente outra rede, desative bloqueadores ou outro navegador.";
+        }
+        setStatus(m0, "err");
+        return;
+      }
       var legId = parseInt(el.legislatura.value, 10);
       var deputies = await fetchDeputados(legId);
       if (!deputies.length) {
@@ -644,8 +676,13 @@
       );
     } catch (e) {
       console.error(e);
+      var msg = e && e.message ? e.message : String(e);
+      if (msg === "Failed to fetch") {
+        msg =
+          "Falha de rede ao listar deputados ou ao carregar fotos pelo proxy. Confirme Internet, use o URL do servidor (http://127.0.0.1:3847 ou o deploy HTTPS) e redeploy se a rota /proxy-image não existir.";
+      }
       setStatus(
-        e.message ||
+        msg ||
           "Falha ao montar o índice. Confirme que está acessando pelo servidor (npm start) para o proxy das imagens.",
         "err"
       );

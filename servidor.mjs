@@ -8,6 +8,7 @@ const PUBLIC = path.resolve(__dirname, "public");
 const PORT = parseInt(process.env.PORT || "3847", 10);
 
 const ALLOWED_PREFIX = "https://www.camara.leg.br/internet/deputado/bandep/";
+const DADOS_ABERTOS_API = "https://dadosabertos.camara.leg.br/api";
 
 function contentType(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
@@ -49,6 +50,32 @@ const server = http.createServer(async (req, res) => {
         "Access-Control-Allow-Headers": "Content-Type",
       });
       res.end();
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname.startsWith("/dados-abertos/")) {
+      const subPath = url.pathname.slice("/dados-abertos".length);
+      if (!/^\/v2\/[a-z0-9/_-]+$/i.test(subPath)) {
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Caminho da API inválido.");
+        return;
+      }
+      const target = DADOS_ABERTOS_API + subPath + url.search;
+      const upstream = await fetch(target, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "camara-face-identifica/1.0 (Node)",
+        },
+        redirect: "follow",
+      });
+      const ct = upstream.headers.get("content-type") || "application/json; charset=utf-8";
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      res.writeHead(upstream.status, {
+        "Content-Type": ct,
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=120",
+      });
+      res.end(buf);
       return;
     }
 
