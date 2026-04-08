@@ -1,0 +1,13 @@
+{
+  "name": "camara-face-identifica",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reconhecimento facial de deputados (dados abertos Câmara) — uso em celular com HTTPS",
+  "scripts": {
+    "start": "node servidor.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

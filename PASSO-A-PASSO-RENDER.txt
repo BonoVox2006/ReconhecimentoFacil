@@ -1,0 +1,71 @@
+Deploy no Render — camara-face-identifica
+==========================================
+
+Antes de comecar
+----------------
+- Conta no GitHub (github.com) e no Render (render.com) — ambas gratuitas para comecar.
+- Este guia assume que o repositorio Git contem APENAS a pasta do projeto
+  (ficheiros como package.json, servidor.mjs, pasta public/, etc. na raiz do repo).
+  Se o teu Git tiver a pasta pai "One Note", no Render define "Root Directory"
+  como camara-face-identifica.
+
+Passo 1 — Colocar o codigo no GitHub
+-------------------------------------
+1. No GitHub: "New repository" → nome ex.: camara-face-identifica → Create.
+2. No teu PC, na pasta camara-face-identifica:
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git branch -M main
+   git remote add origin https://github.com/TEU_USUARIO/camara-face-identifica.git
+   git push -u origin main
+
+   (Se ainda nao usas Git no PC, podes usar GitHub Desktop: File → Add local repository.)
+
+Passo 2 — Criar o servico na Render
+------------------------------------
+1. Entra em https://dashboard.render.com e faz login.
+2. "New +" → "Web Service".
+3. Conecta o repositorio GitHub (autoriza a Render se pedir).
+4. Escolhe o repo camara-face-identifica.
+
+5. Configuracao sugerida:
+   - Name: camara-face-identifica (ou o nome que quiseres)
+   - Region: escolhe a mais proxima (ex. Frankfurt se existir; senao Oregon)
+   - Branch: main
+   - Root Directory: deixa VAZIO se package.json esta na raiz do repo;
+     se o codigo esta dentro de uma subpasta, escreve o nome dessa pasta.
+   - Runtime: Node
+   - Build Command: npm install
+   - Start Command: npm start
+
+6. Instance type: Free (gratis).
+
+7. "Advanced" → Health Check Path (opcional): /health.txt
+   (o ficheiro public/health.txt e servido como texto.)
+
+8. "Create Web Service".
+
+Passo 3 — Esperar o deploy
+---------------------------
+- A Render instala dependencias e corre npm start.
+- Quando o estado ficar "Live", copia o URL que aparece no topo
+  (https://camara-face-identifica.onrender.com ou parecido).
+
+Passo 4 — Testar no telemovel
+------------------------------
+- Abre esse https:// no Chrome do celular.
+- A camara precisa de HTTPS — no Render ja e HTTPS.
+- Nota: no plano gratuito o servico "adormece" sem trafego;
+  o primeiro acesso depois disso pode levar ~1 minuto a responder.
+
+Problemas comuns
+----------------
+- Build falha: confirma que Node >= 18 (Render costuma usar 18+ por defeito).
+- 404 em tudo: Root Directory errado (repo nao e a raiz do projeto).
+- Pagina branca: forca atualizacao (Ctrl+F5); confirma que o deploy terminou com sucesso.
+
+Ficheiro render.yaml
+--------------------
+Se usares "New" → "Blueprint" no dashboard e ligares o repo, a Render pode
+ler o render.yaml deste projeto para preencher parte dos campos.

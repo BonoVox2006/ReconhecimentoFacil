@@ -1,0 +1,10 @@
+{
+  "name": "Deputados — identificação facial",
+  "short_name": "Dep. Face",
+  "description": "Reconhecimento facial com fotos oficiais (dados abertos da Câmara).",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1222",
+  "theme_color": "#0c1222",
+  "orientation": "portrait"
+}

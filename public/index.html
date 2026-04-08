@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="theme-color" content="#0c1222" />
+    <meta name="description" content="Identificação facial de deputados federais com dados abertos da Câmara." />
+    <title>Deputados — identificação facial</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css?v=1" />
+    <!-- Scripts externos sem defer bloqueiam pintura; se o CDN falhar a página fica em branco. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0c1222;
+        color: #e8ecf4;
+        font-family: system-ui, "Segoe UI", sans-serif;
+      }
+      #cdn-blocked {
+        display: none;
+        margin: 16px;
+        padding: 14px;
+        background: #422006;
+        color: #fef3c7;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+      #cdn-blocked.is-visible {
+        display: block;
+      }
+    </style>
+  </head>
+  <body
+    style="background:#0c1222;color:#e8ecf4;padding:16px;min-height:100vh;margin:0;font-family:system-ui,sans-serif"
+  >
+    <div id="cdn-blocked" role="alert">
+      Não foi possível carregar TensorFlow/face-api (rede ou firewall bloqueou cdn.jsdelivr.net). A página precisa
+      dessas bibliotecas. Tente outra rede ou peça liberação do CDN.
+    </div>
+    <div class="app">
+      <header class="header">
+        <h1 class="title">Identificação facial</h1>
+        <p class="subtitle">Dados abertos da Câmara dos Deputados</p>
+      </header>
+
+      <section class="panel">
+        <label class="field">
+          <span class="field__label">Legislatura</span>
+          <select id="legislatura" class="input"></select>
+        </label>
+        <p class="hint">
+          A primeira carga baixa fotos oficiais e pode levar alguns minutos. Depois fica salvo neste aparelho.
+        </p>
+        <div class="actions">
+          <button type="button" id="btnBuild" class="btn btn--primary">Preparar índice facial</button>
+          <button type="button" id="btnCamera" class="btn" disabled>Iniciar câmera</button>
+        </div>
+        <div id="buildProgress" class="progress" hidden>
+          <div class="progress__bar" id="buildBar"></div>
+          <div class="progress__text" id="buildText">0%</div>
+        </div>
+        <div id="status" class="status" role="status"></div>
+      </section>
+
+      <section class="viewer" id="viewer" hidden>
+        <div class="video-wrap">
+          <video id="video" playsinline autoplay muted></video>
+          <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
+        </div>
+        <div id="matchCard" class="match-card">
+          <div class="match-card__empty">Aponte a câmera para um rosto.</div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Uso de câmera e dados biométricos exige base legal e transparência (LGPD). Ferramenta educacional —
+          verifique confiança antes de decisões.
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      function showCdnBlocked() {
+        var el = document.getElementById("cdn-blocked");
+        if (el) el.classList.add("is-visible");
+      }
+    </script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"
+      onerror="showCdnBlocked()"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
+      onerror="showCdnBlocked()"
+    ></script>
+    <script defer src="./app.js?v=4" onerror="showCdnBlocked()"></script>
+  </body>
+</html>

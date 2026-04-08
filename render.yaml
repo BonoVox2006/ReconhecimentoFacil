@@ -1,0 +1,12 @@
+# Blueprint opcional: na Render, "New" -> "Blueprint" e cole este repo.
+# Tambem pode criar o Web Service manualmente (veja PASSO-A-PASSO-RENDER.txt).
+
+services:
+  - type: web
+    name: camara-face-identifica
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health.txt

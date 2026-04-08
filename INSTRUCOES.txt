@@ -1,0 +1,72 @@
+Camara Face Identifica — uso em celular
+========================================
+
+Requisitos
+----------
+- Navegador com WebGL e getUserMedia
+- Servidor local para o proxy das fotos (veja abaixo)
+
+Sem administrador e sem instalar Node.js
+-----------------------------------------
+O Windows ja traz PowerShell. Basta:
+
+1. Dar duplo clique em: iniciar-servidor.cmd
+   (ele chama servidor.ps1 com TcpListener em 127.0.0.1 — nao precisa de admin)
+
+2. Ou no PowerShell, na pasta do projeto:
+   powershell -ExecutionPolicy Bypass -File .\servidor.ps1
+
+3. Abra no navegador: http://127.0.0.1:3847/
+
+Se a politica de execucao bloquear scripts, use sempre o comando acima com
+-ExecutionPolicy Bypass, ou clique em iniciar-servidor.cmd.
+
+Opcional: Node.js
+-----------------
+Se tiver Node instalado, pode usar: npm start   ou   node servidor.mjs
+(O comportamento e o mesmo que servidor.ps1.)
+
+Por que precisa do servidor?
+----------------------------
+As fotos oficiais ficam em www.camara.leg.br sem cabeçalho CORS liberado
+para qualquer site. O arquivo servidor.mjs faz proxy só para URLs
+.../internet/deputado/bandep/<id>.jpg, permitindo que o navegador leia
+pixels e extraia o rosto.
+
+Câmera no celular (HTTPS)
+-------------------------
+Navegadores exigem contexto seguro (HTTPS) para a câmera, exceto em
+localhost. Para testar no celular na mesma rede:
+
+- Opção A: publique em um host com HTTPS (Render, Fly.io, Railway, etc.)
+  e defina a variável de ambiente PORT que a plataforma fornecer.
+
+- Opção B: use um túnel HTTPS apontando para a porta local, por exemplo
+  Cloudflare Tunnel ou ngrok, e abra a URL https no celular.
+
+Pagina em branco / erros na consola
+-----------------------------------
+1) Na Consola do DevTools, deixe o campo "Filter" (filtro) VAZIO. Se tiver texto la dentro,
+   as mensagens de erro somem.
+
+2) Erro em app.js "linha 1": o ficheiro app.js nao e JavaScript valido (sou HTML ou texto).
+   Rede (Network) -> app.js -> separador Resposta: tem de comecar por /* global ou (function
+
+3) Teste o servidor:
+   http://127.0.0.1:3847/health     (pagina HTML grande com "Servidor OK")
+   http://127.0.0.1:3847/health.txt (texto: camara-face-identifica server OK)
+
+4) Pasta e ficheiros servidos:
+   http://127.0.0.1:3847/__debug/info.txt
+
+Fluxo do app
+------------
+1. Escolha a legislatura.
+2. Toque em "Preparar índice facial" (primeira vez pode levar vários
+   minutos; o resultado fica em IndexedDB neste aparelho).
+3. Toque em "Iniciar câmera" e aponte para um rosto.
+
+Aviso legal
+-----------
+Tratamento de imagem facial envolve dados pessoais sensíveis (LGPD).
+Use com responsabilidade e base legal adequada ao seu caso.
