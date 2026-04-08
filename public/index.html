@@ -10,7 +10,7 @@
     <meta name="description" content="Identificação facial de deputados federais com dados abertos da Câmara." />
     <title>Deputados — identificação facial</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
     <!-- Scripts externos sem defer bloqueiam pintura; se o CDN falhar a página fica em branco. -->
     <style>
       html,
@@ -33,6 +33,17 @@
       }
       #cdn-blocked.is-visible {
         display: block;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
     </style>
   </head>
@@ -57,9 +68,11 @@
         <p class="hint">
           A primeira carga baixa fotos oficiais e pode levar alguns minutos. Depois fica salvo neste aparelho.
         </p>
+        <input type="file" id="photoInput" class="sr-only" accept="image/*" tabindex="-1" aria-hidden="true" />
         <div class="actions">
           <button type="button" id="btnBuild" class="btn btn--primary">Preparar índice facial</button>
           <button type="button" id="btnCamera" class="btn" disabled>Iniciar câmera</button>
+          <button type="button" id="btnPhoto" class="btn" disabled>Escolher foto e identificar</button>
         </div>
         <div id="buildProgress" class="progress" hidden>
           <div class="progress__bar" id="buildBar"></div>
@@ -69,11 +82,18 @@
       </section>
 
       <section class="viewer" id="viewer" hidden>
-        <p class="viewer__caption">Resultado (acima da câmara)</p>
+        <p class="viewer__caption">Resultado</p>
         <div id="matchCard" class="match-card match-card--live">
-          <div class="match-card__empty">Aponte a câmera para um rosto.</div>
+          <div class="match-card__empty">
+            Use a câmera abaixo ou «Escolher foto e identificar» no painel.
+          </div>
         </div>
-        <p class="viewer__caption viewer__caption--cam">Câmara</p>
+        <div id="photoPreviewWrap" class="photo-preview-wrap" hidden>
+          <p class="viewer__caption viewer__caption--photo">Foto para análise</p>
+          <img id="photoPreview" alt="Pré-visualização" />
+          <button type="button" id="btnPhotoClear" class="btn btn--small">Remover foto</button>
+        </div>
+        <p class="viewer__caption viewer__caption--cam">Câmara ao vivo</p>
         <div class="video-wrap" id="videoWrap">
           <video id="video" playsinline autoplay muted></video>
           <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
@@ -124,6 +144,6 @@
       src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
       onerror="showCdnBlocked()"
     ></script>
-    <script defer src="./app.js?v=12" onerror="showCdnBlocked()"></script>
+    <script defer src="./app.js?v=13" onerror="showCdnBlocked()"></script>
   </body>
 </html>

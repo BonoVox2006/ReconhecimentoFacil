@@ -82,6 +82,11 @@
     zoomHintMin: document.getElementById("zoomHintMin"),
     zoomHintMax: document.getElementById("zoomHintMax"),
     matchCard: document.getElementById("matchCard"),
+    photoInput: document.getElementById("photoInput"),
+    btnPhoto: document.getElementById("btnPhoto"),
+    photoPreviewWrap: document.getElementById("photoPreviewWrap"),
+    photoPreview: document.getElementById("photoPreview"),
+    btnPhotoClear: document.getElementById("btnPhotoClear"),
   };
 
   function setStatus(text, kind) {
@@ -99,7 +104,84 @@
     );
     el.btnBuild.disabled = true;
     el.btnCamera.disabled = true;
+    if (el.btnPhoto) el.btnPhoto.disabled = true;
     return;
+  }
+
+  var lastPhotoObjectUrl = null;
+
+  function matchCardDefaultHtml() {
+    return (
+      '<div class="match-card__empty">' +
+      "Use a câmera abaixo ou «Escolher foto e identificar» no painel." +
+      "</div>"
+    );
+  }
+
+  function showRecognitionPanel() {
+    if (el.viewer) el.viewer.hidden = false;
+  }
+
+  function revokePhotoPreview() {
+    if (lastPhotoObjectUrl) {
+      try {
+        URL.revokeObjectURL(lastPhotoObjectUrl);
+      } catch (_) {}
+      lastPhotoObjectUrl = null;
+    }
+    if (el.photoPreview) el.photoPreview.removeAttribute("src");
+  }
+
+  function clearPhotoSelection() {
+    revokePhotoPreview();
+    if (el.photoPreviewWrap) el.photoPreviewWrap.hidden = true;
+    if (el.photoInput) el.photoInput.value = "";
+    if (el.matchCard) el.matchCard.innerHTML = matchCardDefaultHtml();
+  }
+
+  function faceBoxArea(f) {
+    var b = f.detection && f.detection.box ? f.detection.box : f.box;
+    if (!b) return 0;
+    return b.width * b.height;
+  }
+
+  function downscaleIfNeeded(img, maxSide) {
+    var w = img.naturalWidth || img.width;
+    var h = img.naturalHeight || img.height;
+    if (!w || !h) return img;
+    if (w <= maxSide && h <= maxSide) return img;
+    var scale = maxSide / Math.max(w, h);
+    var cw = Math.round(w * scale);
+    var ch = Math.round(h * scale);
+    var c = document.createElement("canvas");
+    c.width = cw;
+    c.height = ch;
+    var ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, cw, ch);
+    return c;
+  }
+
+  async function descriptorFromUserImage(source) {
+    var det = await faceapi
+      .detectSingleFace(source, detectorOptionsPhoto())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    if (det && det.descriptor) return det;
+    var all = await faceapi
+      .detectAllFaces(source, detectorOptionsPhoto())
+      .withFaceLandmarks()
+      .withFaceDescriptors();
+    if (!all || !all.length) return null;
+    var best = all[0];
+    var bestA = faceBoxArea(best);
+    for (var i = 1; i < all.length; i++) {
+      var a = faceBoxArea(all[i]);
+      if (a > bestA) {
+        best = all[i];
+        bestA = a;
+      }
+    }
+    return best && best.descriptor ? best : null;
   }
 
   function proxiedPhotoUrl(urlFoto) {
@@ -523,6 +605,7 @@
       setStatus("Prepare o índice facial antes de usar a câmera.", "warn");
       return;
     }
+    clearPhotoSelection();
     if (!window.isSecureContext) {
       setStatus(
         "A câmera exige HTTPS (ou localhost). Use um túnel seguro ou publique o app com TLS.",
@@ -593,7 +676,7 @@
     if (el.zoomHintMin) el.zoomHintMin.textContent = "−";
     if (el.zoomHintMax) el.zoomHintMax.textContent = "+";
     if (el.zoomNote) el.zoomNote.textContent = "Ajuste o zoom após iniciar a câmara.";
-    el.viewer.hidden = true;
+    if (el.btnCamera) el.btnCamera.textContent = "Iniciar câmera";
   }
 
   if (el.zoomSlider) {
@@ -661,6 +744,7 @@
     }
     el.btnBuild.disabled = true;
     el.btnCamera.disabled = true;
+    if (el.btnPhoto) el.btnPhoto.disabled = true;
     stopCamera();
     el.buildProgress.hidden = false;
     el.buildBar.style.width = "0%";
@@ -692,6 +776,12 @@
         el.buildText.textContent = p + "% (" + done + "/" + total + ")";
       });
       el.btnCamera.disabled = gallery.length === 0;
+      if (el.btnPhoto) el.btnPhoto.disabled = gallery.length === 0;
+      if (gallery.length > 0) {
+        showRecognitionPanel();
+      } else if (el.viewer) {
+        el.viewer.hidden = true;
+      }
       setStatus(
         (result.fromCache ? "Índice carregado do armazenamento local. " : "Índice preparado. ") +
           gallery.length +
@@ -729,6 +819,89 @@
     el.btnCamera.disabled = false;
     el.btnCamera.textContent = "Parar câmera";
   });
+
+  if (el.btnPhoto && el.photoInput) {
+    el.btnPhoto.addEventListener("click", function () {
+      if (!gallery.length) {
+        setStatus("Prepare o índice facial antes de identificar.", "warn");
+        return;
+      }
+      el.photoInput.click();
+    });
+  }
+
+  if (el.photoInput) {
+    el.photoInput.addEventListener("change", function () {
+      var file = el.photoInput.files && el.photoInput.files[0];
+      if (!file || !file.type || file.type.indexOf("image/") !== 0) {
+        return;
+      }
+      stopCamera();
+      if (el.btnCamera) el.btnCamera.textContent = "Iniciar câmera";
+      revokePhotoPreview();
+      lastPhotoObjectUrl = URL.createObjectURL(file);
+      el.photoPreview.src = lastPhotoObjectUrl;
+      if (el.photoPreviewWrap) el.photoPreviewWrap.hidden = false;
+      showRecognitionPanel();
+
+      function run() {
+        ensureModels()
+          .then(function () {
+            setStatus("A analisar rosto na foto…");
+            var source = downscaleIfNeeded(el.photoPreview, 1024);
+            return descriptorFromUserImage(source);
+          })
+          .then(function (det) {
+            if (!det || !det.descriptor) {
+              el.matchCard.innerHTML =
+                '<div class="match-card__empty">Nenhum rosto detetável nesta foto. Tente outra mais nítida, com boa luz ou mais de perto.</div>';
+              setStatus("Sem rosto identificável na imagem.", "warn");
+              return;
+            }
+            var m = bestMatch(det.descriptor);
+            if (!m || m.index < 0) {
+              renderMatch(null, 1);
+              setStatus("Rosto na foto não corresponde a um deputado do índice com confiança suficiente.", "warn");
+              return;
+            }
+            var ambiguous = m.second < m.distance + MATCH_AMBIGUITY_MARGIN;
+            renderMatch(gallery[m.index], m.distance, ambiguous);
+            setStatus("Identificação a partir da foto concluída.", "ok");
+          })
+          .catch(function (e) {
+            console.error(e);
+            setStatus(
+              (e && e.message) || "Erro ao processar a foto. Tente outra imagem ou recarregue a página.",
+              "err"
+            );
+          })
+          .finally(function () {
+            if (el.photoInput) el.photoInput.value = "";
+          });
+      }
+
+      if (el.photoPreview.complete && el.photoPreview.naturalWidth > 0) {
+        run();
+      } else {
+        el.photoPreview.onload = function () {
+          el.photoPreview.onload = null;
+          run();
+        };
+        el.photoPreview.onerror = function () {
+          el.photoPreview.onerror = null;
+          setStatus("Não foi possível carregar a imagem escolhida.", "err");
+          clearPhotoSelection();
+        };
+      }
+    });
+  }
+
+  if (el.btnPhotoClear) {
+    el.btnPhotoClear.addEventListener("click", function () {
+      clearPhotoSelection();
+      setStatus("Foto removida. Use a câmera ou escolha outra imagem.");
+    });
+  }
 
   fetchLegislaturas()
     .then(function () {
