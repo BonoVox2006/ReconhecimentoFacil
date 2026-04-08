@@ -369,6 +369,8 @@
   var zoomModeHardware = false;
   var zoomHwMin = 1;
   var zoomHwMax = 3;
+  /** Zoom só na tela quando o browser não expõe zoom da câmara (plenários amplos). */
+  var ZOOM_SOFT_MAX = 5;
 
   function touchPinchDist(t0, t1) {
     var dx = t0.clientX - t1.clientX;
@@ -438,17 +440,17 @@
     } else {
       zoomModeHardware = false;
       zoomHwMin = 1;
-      zoomHwMax = 1.15;
+      zoomHwMax = ZOOM_SOFT_MAX;
       el.zoomSlider.min = "1";
-      el.zoomSlider.max = "1.15";
-      el.zoomSlider.step = "0.01";
+      el.zoomSlider.max = String(ZOOM_SOFT_MAX);
+      el.zoomSlider.step = "0.05";
       el.zoomSlider.value = "1";
-      if (el.zoomLabel) el.zoomLabel.textContent = "Zoom leve (só tela)";
+      if (el.zoomLabel) el.zoomLabel.textContent = "Zoom (só tela)";
       if (el.zoomHintMin) el.zoomHintMin.textContent = "1×";
-      if (el.zoomHintMax) el.zoomHintMax.textContent = "1,15×";
+      if (el.zoomHintMax) el.zoomHintMax.textContent = String(ZOOM_SOFT_MAX).replace(".", ",") + "×";
       if (el.zoomNote) {
         el.zoomNote.textContent =
-          "Este aparelho/browser não expõe zoom da câmara na Web. O deslize só amplia a imagem (qualidade limitada). Para zoom forte à distância, use Chrome em Android com câmara traseira ou aproxime o telemóvel.";
+          "Este aparelho/browser não expõe zoom óptico na Web: o deslize amplia a imagem no ecrã (perde nitidez no máximo). Para melhor resultado, aproxime o telemóvel ou use Chrome em Android com câmara traseira, se disponível.";
       }
     }
   }
@@ -543,7 +545,7 @@
     el.video.style.transform = "scaleX(-1) scale(1)";
     if (el.zoomSlider) {
       el.zoomSlider.min = "1";
-      el.zoomSlider.max = "3";
+      el.zoomSlider.max = String(ZOOM_SOFT_MAX);
       el.zoomSlider.step = "0.05";
       el.zoomSlider.value = "1";
       el.zoomSlider.setAttribute("aria-valuetext", "Zoom");
