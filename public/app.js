@@ -40,12 +40,55 @@
   const STORE = "gallery";
   const POOL = 4;
 
-  /**
-   * Sensibilidade do reconhecimento (distância euclidiana entre descritores).
-   * Valores mais altos em MATCH_MAX_DIST aceitam mais correspondências fracas (plenário, zoom, luz).
-   */
-  const MATCH_MAX_DIST = 0.68;
+  /** Margem entre 1.º e 2.º candidato para aviso de ambiguidade. */
   const MATCH_AMBIGUITY_MARGIN = 0.1;
+
+  const MATCH_PRESETS = {
+    strict: { max: 0.58 },
+    normal: { max: 0.66 },
+    permissive: { max: 0.73 },
+  };
+  const LS_MATCH_PRESET = "camara-face-identifica-match-preset";
+  const LS_IDX_META = "camara-face-identifica-idx-meta-v1";
+
+  var matchPresetKey = "normal";
+
+  function loadMatchPresetFromStorage() {
+    try {
+      var s = localStorage.getItem(LS_MATCH_PRESET);
+      if (s && MATCH_PRESETS[s]) matchPresetKey = s;
+    } catch (_) {}
+  }
+
+  function getMatchMaxDist() {
+    var p = MATCH_PRESETS[matchPresetKey] || MATCH_PRESETS.normal;
+    return p.max;
+  }
+
+  function readIdxMeta() {
+    try {
+      var raw = localStorage.getItem(LS_IDX_META);
+      if (!raw) return { legs: {} };
+      var o = JSON.parse(raw);
+      if (!o || typeof o !== "object") return { legs: {} };
+      if (!o.legs) o.legs = {};
+      return o;
+    } catch (_) {
+      return { legs: {} };
+    }
+  }
+
+  function writeIdxMeta(meta) {
+    try {
+      localStorage.setItem(LS_IDX_META, JSON.stringify(meta));
+    } catch (_) {}
+  }
+
+  function saveIdxMetaForLeg(legId, idsHash) {
+    var meta = readIdxMeta();
+    meta.legs[String(legId)] = { h: idsHash, t: Date.now() };
+    writeIdxMeta(meta);
+  }
 
   const DETECTOR_PHOTO = { inputSize: 512, scoreThreshold: 0.38 };
   const DETECTOR_VIDEO = { inputSize: 416, scoreThreshold: 0.32 };
@@ -87,7 +130,22 @@
     photoPreviewWrap: document.getElementById("photoPreviewWrap"),
     photoPreview: document.getElementById("photoPreview"),
     btnPhotoClear: document.getElementById("btnPhotoClear"),
+    matchPreset: document.getElementById("matchPreset"),
   };
+
+  loadMatchPresetFromStorage();
+  if (el.matchPreset) {
+    el.matchPreset.value = matchPresetKey in MATCH_PRESETS ? matchPresetKey : "normal";
+    el.matchPreset.addEventListener("change", function () {
+      var v = el.matchPreset.value;
+      if (MATCH_PRESETS[v]) {
+        matchPresetKey = v;
+        try {
+          localStorage.setItem(LS_MATCH_PRESET, matchPresetKey);
+        } catch (_) {}
+      }
+    });
+  }
 
   function setStatus(text, kind) {
     el.status.textContent = text || "";
@@ -339,6 +397,7 @@
         };
       });
       onProgress(1, gallery.length, gallery.length);
+      saveIdxMetaForLeg(legId, h);
       return { fromCache: true, key: key };
     }
 
@@ -380,7 +439,35 @@
       };
     });
     await idbSet(key, { legId: legId, idsHash: h, builtAt: Date.now(), items: serial });
+    saveIdxMetaForLeg(legId, h);
     return { fromCache: false, key: key };
+  }
+
+  async function restoreGalleryFromStorage() {
+    if (!el.legislatura) return false;
+    var legId = parseInt(el.legislatura.value, 10);
+    if (!legId || isNaN(legId)) return false;
+    var meta = readIdxMeta();
+    var rec = meta.legs && meta.legs[String(legId)];
+    if (!rec || !rec.h) return false;
+    var key = cacheKey(legId, rec.h);
+    var cached = await idbGet(key);
+    if (!cached || !cached.items || !cached.items.length) return false;
+    gallery = cached.items.map(function (row) {
+      return {
+        id: row.id,
+        nome: row.nome,
+        siglaPartido: row.siglaPartido,
+        siglaUf: row.siglaUf,
+        urlFoto: row.urlFoto,
+        descriptor: new Float32Array(row.descriptor),
+      };
+    });
+    if (el.btnCamera) el.btnCamera.disabled = false;
+    if (el.btnPhoto) el.btnPhoto.disabled = false;
+    showRecognitionPanel();
+    if (el.matchCard) el.matchCard.innerHTML = matchCardDefaultHtml();
+    return true;
   }
 
   function bestMatch(queryDescriptor) {
@@ -402,26 +489,27 @@
   }
 
   function confidenceClass(dist) {
-    if (dist < MATCH_MAX_DIST * 0.62) return "high";
-    if (dist < MATCH_MAX_DIST * 0.82) return "mid";
+    var mx = getMatchMaxDist();
+    if (dist < mx * 0.62) return "high";
+    if (dist < mx * 0.82) return "mid";
     return "low";
   }
 
   function formatConfidence(dist) {
-    var scale = MATCH_MAX_DIST * 1.12;
+    var scale = getMatchMaxDist() * 1.12;
     var pct = Math.max(0, Math.min(100, Math.round((1 - dist / scale) * 100)));
     return pct + "% confiança estimada";
   }
 
   function renderMatch(meta, dist, ambiguous) {
-    if (!meta || dist > MATCH_MAX_DIST) {
+    if (!meta || dist > getMatchMaxDist()) {
       el.matchCard.innerHTML =
         '<div class="match-card__empty">Rosto não identificado entre os deputados desta legislatura. Aproxime-se, melhore a luz ou tente outro ângulo.</div>';
       return;
     }
     var cls = confidenceClass(dist);
     var amb =
-      ambiguous && dist < MATCH_MAX_DIST * 0.88
+      ambiguous && dist < getMatchMaxDist() * 0.88
         ? '<p class="match-result__sub" style="color:var(--warn)">Possível ambiguidade com outro deputado.</p>'
         : "";
     el.matchCard.innerHTML =
@@ -454,6 +542,25 @@
   }
 
   var lastMatchTs = 0;
+  var LIVE_STREAK_INITIAL = 3;
+  var LIVE_STREAK_SWITCH = 6;
+  var LIVE_NO_FACE_CLEAR = 12;
+  var LIVE_WEAK_CLEAR = 10;
+
+  var liveShownIndex = -1;
+  var streakIndex = -1;
+  var streakCount = 0;
+  var noFaceCount = 0;
+  var weakMatchCount = 0;
+
+  function resetLiveMatchStabilizer() {
+    liveShownIndex = -1;
+    streakIndex = -1;
+    streakCount = 0;
+    noFaceCount = 0;
+    weakMatchCount = 0;
+  }
+
   async function onVideoFrame() {
     if (!cameraRunning) return;
     var now = performance.now();
@@ -467,16 +574,52 @@
         .detectSingleFace(el.video, detectorOptionsVideo())
         .withFaceLandmarks()
         .withFaceDescriptor();
+      var maxD = getMatchMaxDist();
+
       if (!det) {
-        el.matchCard.innerHTML =
-          '<div class="match-card__empty">Nenhum rosto detectado. Centralize o rosto na imagem.</div>';
+        noFaceCount++;
+        weakMatchCount = 0;
+        streakIndex = -1;
+        streakCount = 0;
+        if (noFaceCount >= LIVE_NO_FACE_CLEAR) {
+          liveShownIndex = -1;
+          el.matchCard.innerHTML =
+            '<div class="match-card__empty">Nenhum rosto detectado. Centralize o rosto na imagem.</div>';
+        }
       } else {
+        noFaceCount = 0;
         var m = bestMatch(det.descriptor);
-        if (!m || m.index < 0) {
-          renderMatch(null, 1);
+        var weak = !m || m.index < 0 || m.distance > maxD;
+        if (weak) {
+          weakMatchCount++;
+          streakIndex = -1;
+          streakCount = 0;
+          var weakLim = liveShownIndex >= 0 ? LIVE_WEAK_CLEAR : 4;
+          if (weakMatchCount >= weakLim) {
+            liveShownIndex = -1;
+            renderMatch(null, 1);
+            weakMatchCount = 0;
+          }
         } else {
+          weakMatchCount = 0;
+          if (m.index === streakIndex) {
+            streakCount++;
+          } else {
+            streakIndex = m.index;
+            streakCount = 1;
+          }
           var ambiguous = m.second < m.distance + MATCH_AMBIGUITY_MARGIN;
-          renderMatch(gallery[m.index], m.distance, ambiguous);
+          if (m.index === liveShownIndex) {
+            renderMatch(gallery[m.index], m.distance, ambiguous);
+          } else if (liveShownIndex < 0) {
+            if (streakCount >= LIVE_STREAK_INITIAL) {
+              liveShownIndex = m.index;
+              renderMatch(gallery[m.index], m.distance, ambiguous);
+            }
+          } else if (streakCount >= LIVE_STREAK_SWITCH) {
+            liveShownIndex = m.index;
+            renderMatch(gallery[m.index], m.distance, ambiguous);
+          }
         }
       }
     } catch (_) {
@@ -606,6 +749,7 @@
       return;
     }
     clearPhotoSelection();
+    resetLiveMatchStabilizer();
     if (!window.isSecureContext) {
       setStatus(
         "A câmera exige HTTPS (ou localhost). Use um túnel seguro ou publique o app com TLS.",
@@ -655,6 +799,7 @@
 
   function stopCamera() {
     cameraRunning = false;
+    resetLiveMatchStabilizer();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
     var stream = el.video.srcObject;
@@ -859,7 +1004,7 @@
               return;
             }
             var m = bestMatch(det.descriptor);
-            if (!m || m.index < 0) {
+            if (!m || m.index < 0 || m.distance > getMatchMaxDist()) {
               renderMatch(null, 1);
               setStatus("Rosto na foto não corresponde a um deputado do índice com confiança suficiente.", "warn");
               return;
@@ -903,9 +1048,38 @@
     });
   }
 
+  if (el.legislatura) {
+    el.legislatura.addEventListener("change", function () {
+      gallery = [];
+      if (el.btnCamera) el.btnCamera.disabled = true;
+      if (el.btnPhoto) el.btnPhoto.disabled = true;
+      stopCamera();
+      if (el.btnCamera) el.btnCamera.textContent = "Iniciar câmera";
+      clearPhotoSelection();
+      if (el.viewer) el.viewer.hidden = true;
+      restoreGalleryFromStorage().then(function (ok) {
+        if (ok) {
+          setStatus("Índice desta legislatura restaurado do aparelho.", "ok");
+        } else {
+          setStatus("Prepare o índice facial para esta legislatura (primeira vez ou após limpar dados).", "");
+        }
+      });
+    });
+  }
+
   fetchLegislaturas()
     .then(function () {
-      setStatus("Escolha a legislatura e toque em Preparar índice facial.");
+      return restoreGalleryFromStorage();
+    })
+    .then(function (restored) {
+      if (restored) {
+        setStatus(
+          "Índice restaurado deste aparelho. Use câmera ou foto; ajuste «Precisão do reconhecimento» se necessário.",
+          "ok"
+        );
+      } else {
+        setStatus("Escolha a legislatura e toque em Preparar índice facial (a primeira vez demora mais).", "");
+      }
     })
     .catch(function (e) {
       console.error(e);

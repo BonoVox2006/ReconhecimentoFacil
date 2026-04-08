@@ -10,7 +10,7 @@
     <meta name="description" content="Identificação facial de deputados federais com dados abertos da Câmara." />
     <title>Deputados — identificação facial</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
     <!-- Scripts externos sem defer bloqueiam pintura; se o CDN falhar a página fica em branco. -->
     <style>
       html,
@@ -65,8 +65,20 @@
           <span class="field__label">Legislatura</span>
           <select id="legislatura" class="input"></select>
         </label>
+        <label class="field field--preset">
+          <span class="field__label">Precisão do reconhecimento</span>
+          <select id="matchPreset" class="input" aria-describedby="presetHint">
+            <option value="strict">Rigoroso — menos erros, mais “não sei”</option>
+            <option value="normal" selected>Equilibrado</option>
+            <option value="permissive">Permissivo — mais identificações, mais risco de troca</option>
+          </select>
+        </label>
+        <p class="hint hint--preset" id="presetHint">
+          No modo câmara ao vivo o resultado só muda depois de vários frames seguidos (menos “piscar” errado).
+        </p>
         <p class="hint">
-          A primeira carga baixa fotos oficiais e pode levar alguns minutos. Depois fica salvo neste aparelho.
+          O índice fica no armazenamento deste aparelho: ao reabrir a página, tentamos carregar automaticamente a
+          legislatura selecionada (se já tiver sido preparada antes).
         </p>
         <input type="file" id="photoInput" class="sr-only" accept="image/*" tabindex="-1" aria-hidden="true" />
         <div class="actions">
@@ -144,6 +156,6 @@
       src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
       onerror="showCdnBlocked()"
     ></script>
-    <script defer src="./app.js?v=13" onerror="showCdnBlocked()"></script>
+    <script defer src="./app.js?v=14" onerror="showCdnBlocked()"></script>
   </body>
 </html>

@@ -85,6 +85,14 @@ body {
   font-size: 1rem;
 }
 
+.field--preset {
+  margin-top: 14px;
+}
+
+.hint--preset {
+  margin-top: 8px;
+}
+
 .hint {
   margin: 12px 0 0;
   font-size: 0.82rem;
