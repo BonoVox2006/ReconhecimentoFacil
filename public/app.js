@@ -37,8 +37,11 @@
     buildText: document.getElementById("buildText"),
     status: document.getElementById("status"),
     viewer: document.getElementById("viewer"),
+    videoWrap: document.getElementById("videoWrap"),
     video: document.getElementById("video"),
     overlay: document.getElementById("overlay"),
+    zoomSlider: document.getElementById("videoZoom"),
+    zoomNote: document.getElementById("zoomNote"),
     matchCard: document.getElementById("matchCard"),
   };
 
@@ -347,6 +350,62 @@
     rafId = requestAnimationFrame(onVideoFrame);
   }
 
+  var pinchStartDist = 0;
+  var pinchStartZoom = 1;
+
+  function touchPinchDist(t0, t1) {
+    var dx = t0.clientX - t1.clientX;
+    var dy = t0.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function setCssVideoZoom(level) {
+    var scale = 1 + (level - 1) * 0.95;
+    el.video.style.transform = "scaleX(-1) scale(" + scale + ")";
+  }
+
+  async function applyVideoZoom(level) {
+    if (!el.video || !el.video.srcObject) return;
+    var stream = el.video.srcObject;
+    var track = stream.getVideoTracks && stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== "function") {
+      setCssVideoZoom(level);
+      if (el.zoomNote) {
+        el.zoomNote.textContent =
+          "Zoom na tela. Se o rosto continuar pequeno, aproxime o telemóvel ou use a câmara traseira.";
+      }
+      return;
+    }
+    var caps = track.getCapabilities();
+    if (caps && caps.zoom) {
+      var t = (level - 1) / 2;
+      var zMin = caps.zoom.min;
+      var zMax = caps.zoom.max;
+      var z = zMin + t * (zMax - zMin);
+      try {
+        if (typeof track.applyConstraints === "function") {
+          try {
+            await track.applyConstraints({ zoom: z });
+          } catch (_) {
+            await track.applyConstraints({ advanced: [{ zoom: z }] });
+          }
+        }
+        el.video.style.transform = "scaleX(-1) scale(1)";
+        if (el.zoomNote) {
+          el.zoomNote.textContent = "Zoom da câmara ativo (melhor para filmar de mais longe).";
+        }
+        return;
+      } catch (_) {
+        /* continua para zoom na tela */
+      }
+    }
+    setCssVideoZoom(level);
+    if (el.zoomNote) {
+      el.zoomNote.textContent =
+        "Zoom na tela. Em muitos telemóveis só o zoom óptico da câmara melhora o reconhecimento à distância.";
+    }
+  }
+
   async function startCamera() {
     if (!gallery.length) {
       setStatus("Prepare o índice facial antes de usar a câmera.", "warn");
@@ -367,7 +426,11 @@
     var stream = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       });
     } catch (_) {
@@ -385,7 +448,12 @@
     await el.video.play();
     el.viewer.hidden = false;
     cameraRunning = true;
-    setStatus("Câmera ativa. Aponte para um rosto.", "ok");
+    if (el.zoomSlider) {
+      el.zoomSlider.value = "1";
+      el.zoomSlider.setAttribute("aria-valuetext", "Zoom 1x");
+    }
+    await applyVideoZoom(1);
+    setStatus("Câmera ativa. Use o zoom ou o gesto de pinça na imagem.", "ok");
     rafId = requestAnimationFrame(onVideoFrame);
   }
 
@@ -400,7 +468,56 @@
       });
     }
     el.video.srcObject = null;
+    el.video.style.transform = "scaleX(-1) scale(1)";
+    if (el.zoomSlider) {
+      el.zoomSlider.value = "1";
+      el.zoomSlider.setAttribute("aria-valuetext", "Zoom 1x");
+    }
     el.viewer.hidden = true;
+  }
+
+  if (el.zoomSlider) {
+    el.zoomSlider.addEventListener("input", function () {
+      if (!cameraRunning) return;
+      var v = parseFloat(el.zoomSlider.value);
+      el.zoomSlider.setAttribute("aria-valuetext", "Zoom " + v.toFixed(2) + "x");
+      applyVideoZoom(v);
+    });
+  }
+
+  if (el.videoWrap) {
+    el.videoWrap.addEventListener(
+      "touchstart",
+      function (ev) {
+        if (ev.touches.length === 2) {
+          pinchStartDist = touchPinchDist(ev.touches[0], ev.touches[1]);
+          pinchStartZoom = el.zoomSlider ? parseFloat(el.zoomSlider.value) : 1;
+        }
+      },
+      { passive: true }
+    );
+    el.videoWrap.addEventListener(
+      "touchmove",
+      function (ev) {
+        if (ev.touches.length === 2 && pinchStartDist > 10 && el.zoomSlider) {
+          var d = touchPinchDist(ev.touches[0], ev.touches[1]);
+          var ratio = d / pinchStartDist;
+          var nv = Math.min(3, Math.max(1, pinchStartZoom * ratio));
+          el.zoomSlider.value = String(nv);
+          el.zoomSlider.setAttribute("aria-valuetext", "Zoom " + nv.toFixed(2) + "x");
+          applyVideoZoom(nv);
+          ev.preventDefault();
+        }
+      },
+      { passive: false }
+    );
+    el.videoWrap.addEventListener(
+      "touchend",
+      function (ev) {
+        if (ev.touches.length < 2) pinchStartDist = 0;
+      },
+      { passive: true }
+    );
   }
 
   el.btnBuild.addEventListener("click", async function () {
