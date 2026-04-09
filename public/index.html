@@ -65,17 +65,6 @@
           <span class="field__label">Legislatura</span>
           <select id="legislatura" class="input"></select>
         </label>
-        <label class="field field--preset">
-          <span class="field__label">Precisão do reconhecimento</span>
-          <select id="matchPreset" class="input" aria-describedby="presetHint">
-            <option value="strict">Rigoroso — menos erros, mais “não sei”</option>
-            <option value="normal" selected>Equilibrado</option>
-            <option value="permissive">Permissivo — mais identificações, mais risco de troca</option>
-          </select>
-        </label>
-        <p class="hint hint--preset" id="presetHint">
-          No modo câmara ao vivo o resultado só muda depois de vários frames seguidos (menos “piscar” errado).
-        </p>
         <p class="hint">
           O índice fica no armazenamento deste aparelho: ao reabrir a página, tentamos carregar automaticamente a
           legislatura selecionada (se já tiver sido preparada antes).
@@ -156,6 +145,6 @@
       src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
       onerror="showCdnBlocked()"
     ></script>
-    <script defer src="./app.js?v=14" onerror="showCdnBlocked()"></script>
+    <script defer src="./app.js?v=15" onerror="showCdnBlocked()"></script>
   </body>
 </html>

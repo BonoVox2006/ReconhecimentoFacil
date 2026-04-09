@@ -43,26 +43,11 @@
   /** Margem entre 1.º e 2.º candidato para aviso de ambiguidade. */
   const MATCH_AMBIGUITY_MARGIN = 0.1;
 
-  const MATCH_PRESETS = {
-    strict: { max: 0.58 },
-    normal: { max: 0.66 },
-    permissive: { max: 0.73 },
-  };
-  const LS_MATCH_PRESET = "camara-face-identifica-match-preset";
+  const MATCH_MAX_DIST = 0.73;
   const LS_IDX_META = "camara-face-identifica-idx-meta-v1";
 
-  var matchPresetKey = "normal";
-
-  function loadMatchPresetFromStorage() {
-    try {
-      var s = localStorage.getItem(LS_MATCH_PRESET);
-      if (s && MATCH_PRESETS[s]) matchPresetKey = s;
-    } catch (_) {}
-  }
-
   function getMatchMaxDist() {
-    var p = MATCH_PRESETS[matchPresetKey] || MATCH_PRESETS.normal;
-    return p.max;
+    return MATCH_MAX_DIST;
   }
 
   function readIdxMeta() {
@@ -130,22 +115,7 @@
     photoPreviewWrap: document.getElementById("photoPreviewWrap"),
     photoPreview: document.getElementById("photoPreview"),
     btnPhotoClear: document.getElementById("btnPhotoClear"),
-    matchPreset: document.getElementById("matchPreset"),
   };
-
-  loadMatchPresetFromStorage();
-  if (el.matchPreset) {
-    el.matchPreset.value = matchPresetKey in MATCH_PRESETS ? matchPresetKey : "normal";
-    el.matchPreset.addEventListener("change", function () {
-      var v = el.matchPreset.value;
-      if (MATCH_PRESETS[v]) {
-        matchPresetKey = v;
-        try {
-          localStorage.setItem(LS_MATCH_PRESET, matchPresetKey);
-        } catch (_) {}
-      }
-    });
-  }
 
   function setStatus(text, kind) {
     el.status.textContent = text || "";
