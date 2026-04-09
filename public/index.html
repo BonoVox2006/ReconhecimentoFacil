@@ -10,7 +10,7 @@
     <meta name="description" content="Identificação facial de deputados federais com dados abertos da Câmara." />
     <title>Deputados — identificação facial</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
     <!-- Scripts externos sem defer bloqueiam pintura; se o CDN falhar a página fica em branco. -->
     <style>
       html,
@@ -129,6 +129,28 @@
       </footer>
     </div>
 
+    <div
+      id="ambiguityModal"
+      class="ambiguity-modal"
+      hidden
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ambiguityModalTitle"
+    >
+      <div class="ambiguity-modal__backdrop" data-close-ambiguity tabindex="-1"></div>
+      <div class="ambiguity-modal__panel">
+        <h2 id="ambiguityModalTitle" class="ambiguity-modal__title">Possíveis coincidências</h2>
+        <p class="ambiguity-modal__hint">
+          Até três deputados mais próximos ao rosto analisado (menor distância = mais parecido).
+        </p>
+        <div id="ambiguityModalBody" class="ambiguity-modal__body"></div>
+        <button type="button" class="btn btn--small ambiguity-modal__close" data-close-ambiguity>
+          Fechar
+        </button>
+      </div>
+    </div>
+
     <script>
       function showCdnBlocked() {
         var el = document.getElementById("cdn-blocked");
@@ -145,6 +167,6 @@
       src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.min.js"
       onerror="showCdnBlocked()"
     ></script>
-    <script defer src="./app.js?v=15" onerror="showCdnBlocked()"></script>
+    <script defer src="./app.js?v=16" onerror="showCdnBlocked()"></script>
   </body>
 </html>

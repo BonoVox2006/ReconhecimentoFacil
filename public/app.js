@@ -458,6 +458,63 @@
     return { index: bestI, distance: bestD, second: second };
   }
 
+  function topMatches(queryDescriptor, n) {
+    if (!gallery.length || !queryDescriptor || n < 1) return [];
+    var arr = [];
+    for (var i = 0; i < gallery.length; i++) {
+      arr.push({
+        index: i,
+        distance: faceapi.euclideanDistance(queryDescriptor, gallery[i].descriptor),
+      });
+    }
+    arr.sort(function (a, b) {
+      return a.distance - b.distance;
+    });
+    return arr.slice(0, n);
+  }
+
+  var ambiguityModal = document.getElementById("ambiguityModal");
+  var ambiguityModalBody = document.getElementById("ambiguityModalBody");
+
+  function closeAmbiguityModal() {
+    if (!ambiguityModal) return;
+    ambiguityModal.hidden = true;
+    ambiguityModal.setAttribute("aria-hidden", "true");
+  }
+
+  function openAmbiguityModal(candidates) {
+    if (!ambiguityModal || !ambiguityModalBody) return;
+    var html = "";
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      var g = gallery[c.index];
+      if (!g) continue;
+      var rank = i + 1;
+      html +=
+        '<div class="ambiguity-modal__row">' +
+        '<img src="' +
+        proxiedPhotoUrl(g.urlFoto) +
+        '" alt="" width="72" height="90" loading="lazy" />' +
+        '<div class="ambiguity-modal__row-meta">' +
+        '<p class="ambiguity-modal__row-name">' +
+        escapeHtml(g.nome) +
+        "</p>" +
+        '<p class="ambiguity-modal__row-sub">' +
+        escapeHtml((g.siglaPartido || "") + " — " + (g.siglaUf || "")) +
+        "</p>" +
+        '<p class="ambiguity-modal__row-dist">' +
+        escapeHtml("#" + rank + " · distância " + c.distance.toFixed(3)) +
+        "</p>" +
+        "</div></div>";
+    }
+    if (!html) {
+      html = '<p class="ambiguity-modal__hint">Não foi possível listar candidatos.</p>';
+    }
+    ambiguityModalBody.innerHTML = html;
+    ambiguityModal.hidden = false;
+    ambiguityModal.setAttribute("aria-hidden", "false");
+  }
+
   function confidenceClass(dist) {
     var mx = getMatchMaxDist();
     if (dist < mx * 0.62) return "high";
@@ -471,17 +528,23 @@
     return pct + "% confiança estimada";
   }
 
-  function renderMatch(meta, dist, ambiguous) {
+  function renderMatch(meta, dist, ambiguous, ambiguityCandidates) {
     if (!meta || dist > getMatchMaxDist()) {
       el.matchCard.innerHTML =
         '<div class="match-card__empty">Rosto não identificado entre os deputados desta legislatura. Aproxime-se, melhore a luz ou tente outro ângulo.</div>';
       return;
     }
     var cls = confidenceClass(dist);
-    var amb =
-      ambiguous && dist < getMatchMaxDist() * 0.88
-        ? '<p class="match-result__sub" style="color:var(--warn)">Possível ambiguidade com outro deputado.</p>'
-        : "";
+    var amb = "";
+    if (ambiguous && dist < getMatchMaxDist() * 0.88 && ambiguityCandidates && ambiguityCandidates.length) {
+      var enc = encodeURIComponent(JSON.stringify(ambiguityCandidates));
+      amb =
+        '<p class="match-result__sub match-result__amb">' +
+        '<a href="#" class="match-result__amb-link" data-ambiguity-open data-candidates="' +
+        enc +
+        '">Possível ambiguidade com outro deputado</a>' +
+        "</p>";
+    }
     el.matchCard.innerHTML =
       '<div class="match-result">' +
       '<img src="' +
@@ -501,6 +564,34 @@
       "</p>" +
       amb +
       "</div></div>";
+  }
+
+  if (el.matchCard) {
+    el.matchCard.addEventListener("click", function (ev) {
+      var a = ev.target.closest("a[data-ambiguity-open]");
+      if (!a) return;
+      ev.preventDefault();
+      try {
+        var raw = decodeURIComponent(a.getAttribute("data-candidates") || "");
+        var list = JSON.parse(raw);
+        if (Array.isArray(list)) openAmbiguityModal(list);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  }
+
+  if (ambiguityModal) {
+    ambiguityModal.addEventListener("click", function (ev) {
+      if (ev.target.hasAttribute && ev.target.hasAttribute("data-close-ambiguity")) {
+        closeAmbiguityModal();
+      }
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && ambiguityModal && !ambiguityModal.hidden) {
+        closeAmbiguityModal();
+      }
+    });
   }
 
   function escapeHtml(s) {
@@ -579,16 +670,17 @@
             streakCount = 1;
           }
           var ambiguous = m.second < m.distance + MATCH_AMBIGUITY_MARGIN;
+          var tops = ambiguous ? topMatches(det.descriptor, 3) : null;
           if (m.index === liveShownIndex) {
-            renderMatch(gallery[m.index], m.distance, ambiguous);
+            renderMatch(gallery[m.index], m.distance, ambiguous, tops);
           } else if (liveShownIndex < 0) {
             if (streakCount >= LIVE_STREAK_INITIAL) {
               liveShownIndex = m.index;
-              renderMatch(gallery[m.index], m.distance, ambiguous);
+              renderMatch(gallery[m.index], m.distance, ambiguous, tops);
             }
           } else if (streakCount >= LIVE_STREAK_SWITCH) {
             liveShownIndex = m.index;
-            renderMatch(gallery[m.index], m.distance, ambiguous);
+            renderMatch(gallery[m.index], m.distance, ambiguous, tops);
           }
         }
       }
@@ -980,7 +1072,8 @@
               return;
             }
             var ambiguous = m.second < m.distance + MATCH_AMBIGUITY_MARGIN;
-            renderMatch(gallery[m.index], m.distance, ambiguous);
+            var topsPhoto = ambiguous ? topMatches(det.descriptor, 3) : null;
+            renderMatch(gallery[m.index], m.distance, ambiguous, topsPhoto);
             setStatus("Identificação a partir da foto concluída.", "ok");
           })
           .catch(function (e) {
@@ -1043,10 +1136,7 @@
     })
     .then(function (restored) {
       if (restored) {
-        setStatus(
-          "Índice restaurado deste aparelho. Use câmera ou foto; ajuste «Precisão do reconhecimento» se necessário.",
-          "ok"
-        );
+        setStatus("Índice restaurado deste aparelho. Pode usar a câmera ou uma foto.", "ok");
       } else {
         setStatus("Escolha a legislatura e toque em Preparar índice facial (a primeira vez demora mais).", "");
       }
